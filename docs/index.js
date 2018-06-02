@@ -20626,6 +20626,8 @@ Cogs.define("react-list.js", function (COGS_REQUIRE, COGS_REQUIRE_ASYNC, module,
     _createClass(ReactList, [{
       key: 'componentWillReceiveProps',
       value: function componentWillReceiveProps(next) {
+        // Viewport size & scroll are no longer useful if axis changes
+        if (this.props.axis !== next.axis) this.clearSizeCache();
         var _state = this.state,
             from = _state.from,
             size = _state.size,
@@ -20746,10 +20748,13 @@ Cogs.define("react-list.js", function (COGS_REQUIRE, COGS_REQUIRE_ASYNC, module,
     }, {
       key: 'getViewportSize',
       value: function getViewportSize() {
+        // Cache viewport size as this causes a forced synchronous layout.
+        if (typeof this.cachedParentDimension === 'number') return this.cachedParentDimension;
         var scrollParent = this.scrollParent;
         var axis = this.props.axis;
 
-        return scrollParent === window ? window[INNER_SIZE_KEYS[axis]] : scrollParent[CLIENT_SIZE_KEYS[axis]];
+        this.cachedParentDimension = scrollParent === window ? window[INNER_SIZE_KEYS[axis]] : scrollParent[CLIENT_SIZE_KEYS[axis]];
+        return this.cachedParentDimension;
       }
     }, {
       key: 'getScrollSize',
@@ -20821,9 +20826,15 @@ Cogs.define("react-list.js", function (COGS_REQUIRE, COGS_REQUIRE_ASYNC, module,
         }return { itemSize: itemSize, itemsPerRow: itemsPerRow };
       }
     }, {
+      key: 'clearSizeCache',
+      value: function clearSizeCache() {
+        this.cachedScroll = null;
+        this.cachedParentDimension = null;
+      }
+    }, {
       key: 'updateFrameAndClearCache',
       value: function updateFrameAndClearCache(cb) {
-        this.cachedScroll = null;
+        this.clearSizeCache();
         return this.updateFrame(cb);
       }
     }, {
@@ -20850,6 +20861,8 @@ Cogs.define("react-list.js", function (COGS_REQUIRE, COGS_REQUIRE_ASYNC, module,
           prev.removeEventListener('scroll', this.updateFrameAndClearCache);
           prev.removeEventListener('mousewheel', NOOP);
         }
+        // If we have a new parent, cached parent dimensions are no longer useful.
+        this.clearSizeCache();
         this.scrollParent.addEventListener('scroll', this.updateFrameAndClearCache, PASSIVE);
         // You have to attach mousewheel listener to the scrollable element.
         // Just an empty listener. After that onscroll events will be fired synchronously.

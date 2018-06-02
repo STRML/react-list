@@ -87,6 +87,8 @@ module.exports = class ReactList extends Component {
   }
 
   componentWillReceiveProps(next) {
+    // Viewport size & scroll are no longer useful if axis changes
+    if (this.props.axis !== next.axis) this.clearSizeCache();
     let {from, size, itemsPerRow} = this.state;
     this.maybeSetState(this.constrain(from, size, itemsPerRow, next), NOOP);
   }
@@ -184,11 +186,14 @@ module.exports = class ReactList extends Component {
   }
 
   getViewportSize() {
+    // Cache viewport size as this causes a forced synchronous layout.
+    if (typeof this.cachedParentDimension === 'number') return this.cachedParentDimension;
     const {scrollParent} = this;
     const {axis} = this.props;
-    return scrollParent === window ?
+    this.cachedParentDimension = scrollParent === window ?
       window[INNER_SIZE_KEYS[axis]] :
       scrollParent[CLIENT_SIZE_KEYS[axis]];
+    return this.cachedParentDimension;
   }
 
   getScrollSize() {
@@ -249,9 +254,14 @@ module.exports = class ReactList extends Component {
     return {itemSize, itemsPerRow};
   }
 
+  clearSizeCache() {
+    this.cachedScroll = null;
+    this.cachedParentDimension = null;
+  }
+
   // Called by 'scroll' and 'resize' events, clears scroll position cache.
   updateFrameAndClearCache(cb) {
-    this.cachedScroll = null;
+    this.clearSizeCache();
     return this.updateFrame(cb);
   }
 
@@ -273,6 +283,8 @@ module.exports = class ReactList extends Component {
       prev.removeEventListener('scroll', this.updateFrameAndClearCache);
       prev.removeEventListener('mousewheel', NOOP);
     }
+    // If we have a new parent, cached parent dimensions are no longer useful.
+    this.clearSizeCache();
     this.scrollParent.addEventListener('scroll', this.updateFrameAndClearCache, PASSIVE);
     // You have to attach mousewheel listener to the scrollable element.
     // Just an empty listener. After that onscroll events will be fired synchronously.
